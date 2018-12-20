@@ -1,0 +1,10 @@
+[environments]
+  [environments.development]
+    name = "simple-express"
+    namespace = "default"
+    wait = true
+    watch = true
+    watch-delay = 2
+    auto-connect = false
+    dockerfile = "Dockerfile"
+    chart = ""
