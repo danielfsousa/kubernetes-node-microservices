@@ -5,7 +5,13 @@ metadata:
   name: {{ template "fullname" . }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 spec:
+  # tls:
+    # - hosts:
+    #   - simpleexpress.tk
+    #   secretName: testsecret-tls
   rules:
   - host: {{ .Release.Name }}.{{ .Values.basedomain }}
     http:

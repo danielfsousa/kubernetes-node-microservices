@@ -1,0 +1,17 @@
+# apiVersion: extensions/v1beta1
+# kind: Ingress
+# metadata:
+#   name: simple-express-ingress
+# spec:
+#   tls:
+#   - hosts:
+#     - simpleexpress.tk
+#     secretName: testsecret-tls
+#   rules:
+#     - host: simpleexpress.tk
+#       http:
+#         paths:
+#         - path: /
+#           backend:
+#             serviceName: simple-express-service
+#             servicePort: 80

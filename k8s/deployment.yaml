@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-express-deployment
+  labels:
+    app: simple-express
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: simple-express
+  template:
+    metadata:
+      labels:
+        app: simple-express
+    spec:
+      containers:
+        - name: simple-express
+          image: danielfsousa/simple-express:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: simple-express-secret
+            - configMapRef:
+                name: simple-express-config
+          livenessProbe:
+            httpGet:
+              path: /status/health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /status/ready
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 1
+          resources:
+            requests:
+              cpu: '0.1'
+              memory: 30M
+            limits:
+              cpu: '0.25'
+              memory: 100M

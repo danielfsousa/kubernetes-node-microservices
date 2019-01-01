@@ -1,10 +1,19 @@
-version: '2.1'
+version: '3'
 
 services:
+  redis:
+    image: redis
   simple-express:
-    image: simple-express
-    build: .
+    depends_on:
+      - redis
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      REDIS_MASTER_SERVICE_HOST: redis
+      REDIS_MASTER_SERVICE_PORT: 6379
     ports:
       - 3000:3000
+      - 9229:9229
+    command: node --inspect=0.0.0.0:9229 index.js

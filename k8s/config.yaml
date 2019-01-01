@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simple-express-config
+data:
+  PORT: '3000'
+  SPECIAL_TYPE: charm
