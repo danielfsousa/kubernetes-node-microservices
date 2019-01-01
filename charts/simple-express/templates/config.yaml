@@ -3,8 +3,8 @@ kind: ConfigMap
 metadata:
   name: simple-express-config
 data:
-  PORT: {{ .Values.service.internalPort | quote }}
   RELEASE_NAME: {{ .Release.Name }}
-{{- if .Values.variables -}}
-  {{ toYaml .Values.variables | indent 2 }}
-{{- end -}}
+  PORT: {{ .Values.service.internalPort | quote }}
+  {{- if .Values.variables}}
+  {{ toYaml .Values.variables }}
+  {{- end}}
