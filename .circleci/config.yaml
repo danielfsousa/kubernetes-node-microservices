@@ -1,0 +1,145 @@
+version: 2
+
+references:
+  restore_cache: &restore_cache
+    restore_cache:
+      keys:
+        - v1-dependencies-{{ checksum "package.json" }}
+        # fallback to using the latest cache if no exact match is found
+        - v1-dependencies-
+  save_cache: &save_cache
+    save_cache:
+      paths:
+        - node_modules
+      key: v1-dependencies-{{ checksum "package.json" }}
+  set_environment_variables: &set_environment_variables
+    run:
+      name: Set Environment Variables
+      command: |
+        echo 'export CI_SHA1=$CIRCLE_SHA1' >> ${BASH_ENV}
+        echo 'export CI_BRANCH=$CIRCLE_BRANCH' >> ${BASH_ENV}
+        echo 'export CI_BUILD_NUM=$CIRCLE_BUILD_NUM' >> ${BASH_ENV}
+        echo 'export CI_TAG=$CIRCLE_TAG' >> ${BASH_ENV}
+        echo 'export ROK8S_INSTALL_PATH=${HOME}' >> ${BASH_ENV}
+        echo "export KUBECONFIG_DATA=\$$KUBECONFIG_DATA" >> ${BASH_ENV}
+  migration_steps: &migration_steps
+    docker:
+      - image: circleci/node:10.14.0
+    steps:
+      - checkout
+      - *restore_cache
+      - run: npm install
+      - *save_cache
+      - run: npm run migrate
+  deploy_steps: &deploy_steps
+    docker:
+      - image: quay.io/reactiveops/ci-images:v7-alpine
+    steps:
+      - checkout
+      - *set_environment_variables
+      - run: prepare-kubectl
+      - run: k8s-deploy-and-verify -f ${ROK8S_CONFIG}
+
+jobs:
+  test:
+    docker:
+      - image: circleci/node:10.14.0
+    steps:
+      - checkout
+      - *restore_cache
+      - run: npm install
+      - *save_cache
+      - run: npm run lint
+      - run: npm run migrate TEST_DATABASE
+      - run: npm test
+  imagebuild:
+    docker:
+      - image: quay.io/reactiveops/ci-images:v7-alpine
+    steps:
+      - checkout
+      - setup_remote_docker
+      - *set_environment_variables
+      - run: "[[ -n ${ROK8S_NO_BUILD} ]] || docker-pull -f ${ROK8S_CONFIG}"
+      - run: "[[ -n ${ROK8S_NO_BUILD} ]] || docker-build -f ${ROK8S_CONFIG}"
+      - run: "[[ -n ${ROK8S_NO_BUILD} ]] || docker-push -f ${ROK8S_CONFIG}"
+    environment:
+      ROK8S_CONFIG: deploy/config/staging.config
+  migrate_development:
+    <<: *migration_steps
+    environment:
+      DATABASE_URI: DEVELOPMENT_DATABASE
+  migrate_staging:
+    <<: *migration_steps
+    environment:
+      DATABASE_URI: STAGING_DATABASE
+  migrate_production:
+    <<: *migration_steps
+    environment:
+      DATABASE_URI: PRODUCTION_DATABASE
+  deploy_development:
+    <<: *deploy_steps
+    environment:
+      ENV: DEVELOPMENT
+      ROK8S_CONFIG: deploy/config/development.config
+      KUBECONFIG_DATA: KUBECONFIG_DATA_DEVELOPMENT
+  deploy_staging:
+    <<: *deploy_steps
+    environment:
+      ENV: STAGING
+      ROK8S_CONFIG: deploy/config/staging.config
+      KUBECONFIG_DATA: KUBECONFIG_DATA_STAGING
+  deploy_production:
+    <<: *deploy_steps
+    environment:
+      ENV: PRODUCTION
+      ROK8S_CONFIG: deploy/config/production.config
+      KUBECONFIG_DATA: KUBECONFIG_DATA_PRODUCTION
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - test
+      - imagebuild:
+        context: org-global
+        filters:
+          tags:
+            ignore: /.*/
+  migrate:
+    jobs:
+      - migrate_development
+      - migrate_staging
+      - migrate_production
+  release:
+    jobs:
+      - deploy_development:
+          context: org-global
+          requires:
+            - imagebuild
+            - migrate_development
+          filters:
+            branches:
+              only:
+                - develop
+            tags:
+              ignore: /.*/
+      - deploy_staging:
+          context: org-global
+          requires:
+            - imagebuild
+            - migrate_staging
+          filters:
+            branches:
+              only:
+                - master
+            tags:
+              ignore: /.*/
+      - deploy_production:
+        context: org-global
+        requires:
+          - migrate_production
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /\d+\.\d+\.\d+$/

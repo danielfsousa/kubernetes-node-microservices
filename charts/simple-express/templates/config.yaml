@@ -5,6 +5,10 @@ metadata:
 data:
   RELEASE_NAME: {{ .Release.Name }}
   PORT: {{ .Values.service.internalPort | quote }}
+  APP_COMMIT_REF: {{ .Values.image.tag }}
+  APP_BUILD_DATE: {{ .Values.ci.buildDate }}
+  APP_CI_REF: {{ .Values.rok8sCIRef }}
+  APP_CI_BRANCH: {{ .Values.ci.branch }}
   {{- if .Values.variables}}
   {{ toYaml .Values.variables }}
   {{- end}}
