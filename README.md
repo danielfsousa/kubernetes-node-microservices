@@ -14,6 +14,7 @@ Example of a microservice built with Node.js running in kubernetes
 - [Circleci](https://circleci.com)
 - [ELK Stack](https://www.elastic.co/elk-stack)
 - [Prometheus](https://prometheus.io)
+- [rok8s-scripts](https://github.com/reactiveops/rok8s-scripts)
 
 ## Development
 
