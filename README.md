@@ -1,4 +1,4 @@
-# kubernetes-microservices-example
+# kubernetes-node-microservices
 Example of a microservice built with Node.js running in kubernetes
 
 ## Tools and Technologies
