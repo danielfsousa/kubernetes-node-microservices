@@ -101,10 +101,10 @@ workflows:
     jobs:
       - test
       - imagebuild:
-        context: org-global
-        filters:
-          tags:
-            ignore: /.*/
+          context: org-global
+          filters:
+            tags:
+              ignore: /.*/
   migrate:
     jobs:
       - migrate_development
@@ -135,11 +135,11 @@ workflows:
             tags:
               ignore: /.*/
       - deploy_production:
-        context: org-global
-        requires:
-          - migrate_production
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only: /\d+\.\d+\.\d+$/
+          context: org-global
+          requires:
+            - migrate_production
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /\d+\.\d+\.\d+$/
