@@ -11,7 +11,9 @@
     "migrate": "echo \"> Migrated: $DATABASE_URI\""
   },
   "standard": {
-    "env": ["jest"]
+    "env": [
+      "jest"
+    ]
   },
   "keywords": [],
   "author": "",

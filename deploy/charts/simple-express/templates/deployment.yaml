@@ -9,7 +9,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.scale.minReplicas }}
+  replicas: {{ .Values.hpa.minReplicas }}
   template:
     metadata:
       annotations:
@@ -19,14 +19,16 @@ spec:
         app: {{ template "fullname" . }}
         release: {{ .Release.Name }}
     spec:
+      imagePullSecrets:
+       - name: {{ .Values.image.pullSecret }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           envFrom:
             - secretRef:
-                name: simple-express-secret
+                name: {{ template "fullname" . }}
             - configMapRef:
-                name: simple-express-config
+                name: {{ template "fullname" . }}
           ports:
             - containerPort: {{ .Values.service.internalPort }}
           resources:

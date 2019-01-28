@@ -12,7 +12,7 @@ references:
       paths:
         - node_modules
       key: v1-dependencies-{{ checksum "package.json" }}
-  set_environment_variables: &set_environment_variables
+  initialize_env: &initialize_env
     run:
       name: Set Environment Variables
       command: |
@@ -21,29 +21,63 @@ references:
         echo 'export CI_BUILD_NUM=$CIRCLE_BUILD_NUM' >> ${BASH_ENV}
         echo 'export CI_TAG=$CIRCLE_TAG' >> ${BASH_ENV}
         echo 'export ROK8S_INSTALL_PATH=${HOME}' >> ${BASH_ENV}
-        echo "export KUBECONFIG_DATA=\$$KUBECONFIG_DATA" >> ${BASH_ENV}
-  migration_steps: &migration_steps
-    docker:
-      - image: circleci/node:10.14.0
-    steps:
-      - checkout
-      - *restore_cache
-      - run: npm install
-      - *save_cache
-      - run: npm run migrate
-  deploy_steps: &deploy_steps
-    docker:
-      - image: quay.io/reactiveops/ci-images:v7-alpine
-    steps:
-      - checkout
-      - *set_environment_variables
-      - run: prepare-kubectl
-      - run: k8s-deploy-and-verify -f ${ROK8S_CONFIG}
+        echo 'export GCLOUDSDK_CONTAINER_USE_V1_CLIENT="false"' >> ${BASH_ENV}
+        echo 'export GOOGLE_APPLICATION_CREDENTIALS="${ROK8S_TMP:-${HOME}}/gcloud-service-key.json"' >> ${BASH_ENV}
+        echo 'export GCP_REGIONAL_CLUSTER="true"' >> ${BASH_ENV}
+        echo 'export GCP_REGION="us-central1"' >> ${BASH_ENV}
+  initialize_dev: &initialize_dev
+    run:
+      name: Set Development Environment Variables
+      command: |
+        echo 'export DATABASE_URI=$DATABASE_URI_DEV' >> ${BASH_ENV}
+        echo 'export GCP_PROJECT=$GCLOUD_PROJECT_DEV' >> ${BASH_ENV}
+        echo 'export CLUSTER_NAME=$GCLOUD_CLUSTER_DEV' >> ${BASH_ENV}
+        echo 'export GCLOUD_KEY=$GCLOUD_KEY_DEV' >> ${BASH_ENV}
+        echo 'export ROK8S_CONFIG="deploy/config/development.config"' >> ${BASH_ENV}
+  initialize_staging: &initialize_staging
+    run:
+      name: Set Staging Environment Variables
+      command: |
+        echo 'export DATABASE_URI=$DATABASE_URI_STAGING' >> ${BASH_ENV}
+        echo 'export GCP_PROJECT=$GCLOUD_PROJECT_STAGING' >> ${BASH_ENV}
+        echo 'export CLUSTER_NAME=$GCLOUD_CLUSTER_STAGING' >> ${BASH_ENV}
+        echo 'export GCLOUD_KEY=$GCLOUD_KEY_STAGING' >> ${BASH_ENV}
+        echo 'export ROK8S_CONFIG="deploy/config/staging.config"' >> ${BASH_ENV}
+  initialize_prod: &initialize_prod
+    run:
+      name: Set Production Environment Variables
+      command: |
+        echo 'export DATABASE_URI=$DATABASE_URI_PROD' >> ${BASH_ENV}
+        echo 'export GCP_PROJECT=$GCLOUD_PROJECT_PROD' >> ${BASH_ENV}
+        echo 'export CLUSTER_NAME=$GCLOUD_CLUSTER_PROD' >> ${BASH_ENV}
+        echo 'export GCLOUD_KEY=$GCLOUD_KEY_PROD' >> ${BASH_ENV}
+        echo 'export ROK8S_CONFIG="deploy/config/production.config"' >> ${BASH_ENV}
+  development_filters: &development_filters
+    filters:
+      branches:
+        ignore:
+          - master
+      tags:
+        ignore: /.*/
+  staging_filters: &staging_filters
+    filters:
+      branches:
+        only:
+          - master
+      tags:
+        ignore: /.*/
+  production_filters: &production_filters
+    filters:
+      branches:
+        ignore: /.*/
+      tags:
+        only: /\d+\.\d+\.\d+$/
 
 jobs:
   test:
     docker:
       - image: circleci/node:10.14.0
+      - image: redis
     steps:
       - checkout
       - *restore_cache
@@ -52,94 +86,103 @@ jobs:
       - run: npm run lint
       - run: npm run migrate TEST_DATABASE
       - run: npm test
-  imagebuild:
+  image_build:
     docker:
       - image: quay.io/reactiveops/ci-images:v7-alpine
     steps:
       - checkout
       - setup_remote_docker
-      - *set_environment_variables
+      - *initialize_env
+      - *initialize_dev
+      - run: echo 'export ROK8S_CONFIG="deploy/config/build.config"' >> ${BASH_ENV}
+      - run: prepare-gcloud
       - run: "[[ -n ${ROK8S_NO_BUILD} ]] || docker-pull -f ${ROK8S_CONFIG}"
       - run: "[[ -n ${ROK8S_NO_BUILD} ]] || docker-build -f ${ROK8S_CONFIG}"
       - run: "[[ -n ${ROK8S_NO_BUILD} ]] || docker-push -f ${ROK8S_CONFIG}"
-    environment:
-      ROK8S_CONFIG: deploy/config/staging.config
   migrate_development:
-    <<: *migration_steps
-    environment:
-      DATABASE_URI: DEVELOPMENT_DATABASE
+    docker:
+      - image: circleci/node:10.14.0
+    steps:
+      - *initialize_dev
+      - checkout
+      - run: npm run migrate
   migrate_staging:
-    <<: *migration_steps
-    environment:
-      DATABASE_URI: STAGING_DATABASE
+    docker:
+      - image: circleci/node:10.14.0
+    steps:
+      - *initialize_staging
+      - checkout
+      - run: npm run migrate
   migrate_production:
-    <<: *migration_steps
-    environment:
-      DATABASE_URI: PRODUCTION_DATABASE
+    docker:
+      - image: circleci/node:10.14.0
+    steps:
+      - *initialize_prod
+      - checkout
+      - run: npm run migrate
   deploy_development:
-    <<: *deploy_steps
-    environment:
-      ENV: DEVELOPMENT
-      ROK8S_CONFIG: deploy/config/development.config
-      KUBECONFIG_DATA: KUBECONFIG_DATA_DEVELOPMENT
+    docker:
+      - image: quay.io/reactiveops/ci-images:v7-alpine
+    steps:
+      - *initialize_env
+      - *initialize_dev
+      - checkout
+      - run: prepare-gcloud
+      - run: helm-deploy -f ${ROK8S_CONFIG}
   deploy_staging:
-    <<: *deploy_steps
-    environment:
-      ENV: STAGING
-      ROK8S_CONFIG: deploy/config/staging.config
-      KUBECONFIG_DATA: KUBECONFIG_DATA_STAGING
+    docker:
+      - image: quay.io/reactiveops/ci-images:v7-alpine
+    steps:
+      - *initialize_env
+      - *initialize_staging
+      - checkout
+      - run: prepare-gcloud
+      - run: helm-deploy -f ${ROK8S_CONFIG}
   deploy_production:
-    <<: *deploy_steps
-    environment:
-      ENV: PRODUCTION
-      ROK8S_CONFIG: deploy/config/production.config
-      KUBECONFIG_DATA: KUBECONFIG_DATA_PRODUCTION
+    docker:
+      - image: quay.io/reactiveops/ci-images:v7-alpine
+    steps:
+      - *initialize_env
+      - *initialize_prod
+      - checkout
+      - run: prepare-gcloud
+      - run: helm-deploy -f ${ROK8S_CONFIG}
 
 workflows:
   version: 2
-  build_and_test:
+  build_test_migrate_release:
     jobs:
       - test
-      - imagebuild:
-          context: org-global
+      - image_build:
+          requires:
+            - test
           filters:
             tags:
               ignore: /.*/
-  migrate:
-    jobs:
-      - migrate_development
-      - migrate_staging
-      - migrate_production
-  release:
-    jobs:
+      - migrate_development:
+          <<: *development_filters
+          requires:
+            - test
+      - migrate_staging:
+          <<: *staging_filters
+          requires:
+            - test
+      - migrate_production:
+          <<: *production_filters
+          requires:
+            - test
       - deploy_development:
-          context: org-global
+          <<: *development_filters
           requires:
-            - imagebuild
+            - image_build
             - migrate_development
-          filters:
-            branches:
-              only:
-                - develop
-            tags:
-              ignore: /.*/
       - deploy_staging:
-          context: org-global
+          <<: *staging_filters
           requires:
-            - imagebuild
+            - image_build
             - migrate_staging
-          filters:
-            branches:
-              only:
-                - master
-            tags:
-              ignore: /.*/
       - deploy_production:
-          context: org-global
+          <<: *production_filters
           requires:
+            - image_build
             - migrate_production
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /\d+\.\d+\.\d+$/

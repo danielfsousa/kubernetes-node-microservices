@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  RELEASE_NAME: {{ .Release.Name }}
+  PORT: {{ .Values.service.internalPort | quote }}
+  APP_COMMIT_REF: {{ .Values.image.tag }}
+  APP_CI_REF: {{ .Values.rok8sCIRef }}
+
+  {{- if .Values.ci }}
+  APP_BUILD_DATE: {{ .Values.ci.buildDate }}
+  APP_CI_BRANCH: {{ .Values.ci.branch }}
+  {{- end }}
+
+  {{- if .Values.redis.enabled }}
+  REDIS_HOST: "{{ template "redis.fullname" . }}-master"
+  {{- else }}
+  REDIS_HOST: {{ .Values.externalRedis.host | quote }}
+  {{- end }}
+
+  {{- if .Values.redis.enabled }}
+  REDIS_PORT: "6379"
+  {{- else }}
+  REDIS_PORT: {{ .Values.externalRedis.port | quote }}
+  {{- end }}
+
+  {{- if .Values.env }}
+  {{ toYaml .Values.env }}
+  {{- end }}

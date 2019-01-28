@@ -1,3 +1,6 @@
+image:
+  repository: gcr.io/aprendendo-226519/simple-express
+
 service:
   name: http
   type: LoadBalancer

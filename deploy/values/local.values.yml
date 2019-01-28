@@ -1,8 +1,8 @@
 service:
   name: http
-  type: LoadBalancer
-  externalPort: 80
+  type: NodePort
+  nodePort: 30000
   internalPort: 3000
 
 variables:
-  NODE_ENV: production
+  NODE_ENV: development

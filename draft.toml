@@ -7,4 +7,4 @@
     watch-delay = 2
     auto-connect = false
     dockerfile = "Dockerfile"
-    chart = ""
+    chart = "deploy/charts/simple-express"
